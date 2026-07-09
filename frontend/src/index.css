@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+@import "@fontsource/spectral/500.css";
+@import "@fontsource/spectral/600.css";
+@import "@fontsource/spectral/700.css";
+@import "@fontsource/spectral/600-italic.css";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme {
+  --color-paper: #eeece3;
+  --color-paper-raised: #f6f5ee;
+  --color-paper-sunken: #e2ded0;
+  --color-ink: #1c2333;
+  --color-ink-soft: #4a5268;
+  --color-ink-faint: #8b8f7f;
+  --color-seal: #8c2f2f;
+  --color-seal-dark: #6e2323;
+  --color-line: #c7c2ac;
+  --color-distinction: #3f6b4e;
+  --color-merit: #a4761f;
+  --color-pass: #4a5268;
+  --color-fail: #8c2f2f;
+
+  --font-display: "Spectral", ui-serif, Georgia, serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Courier New", monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+}
+
+* {
+  border-color: var(--color-line);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-seal);
+  outline-offset: 2px;
+  border-radius: 1px;
+}
+
+::selection {
+  background-color: var(--color-seal);
+  color: var(--color-paper-raised);
+}

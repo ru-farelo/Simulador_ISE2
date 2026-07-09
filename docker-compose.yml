@@ -1,0 +1,38 @@
+services:
+  vector_db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ise2
+      POSTGRES_PASSWORD: ise2
+      POSTGRES_DB: ise2_vectors
+    ports:
+      - "5433:5432"
+    volumes:
+      - vector_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ise2"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    environment:
+      # Inside the Docker network, reach Postgres via the service name on its
+      # normal port — the 5433 host mapping only matters for local (non-Docker) dev.
+      VECTOR_DB_URL: postgresql://ise2:ise2@vector_db:5432/ise2_vectors
+    volumes:
+      - ./backend/app/data:/srv/app/data
+      - ./context:/context
+    depends_on:
+      vector_db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  vector_db_data:

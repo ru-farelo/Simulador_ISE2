@@ -1,0 +1,30 @@
+# Secrets
+.env
+backend/.env
+
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python / backend
+backend/venv/
+backend/.venv/
+**/__pycache__/
+*.pyc
+
+# SQLite data
+backend/app/data/*.db
+backend/app/data/*.db-journal
+
+# Vector DB (pgvector) persists in a Docker named volume — nothing to ignore here.
+
+# Candidate's own study material (PDFs, notes) — never commit personal data
+context/*
+!context/.gitkeep
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
