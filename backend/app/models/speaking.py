@@ -23,6 +23,10 @@ class ConversationTurn(BaseModel):
 class SpeakingTurnRequest(BaseModel):
     history: list[ConversationTurn]
     context: dict = {}
+    # Client-generated id for this task attempt, stable across every turn
+    # of the same conversation — used to persist the transcript turn by
+    # turn (see SpeakingTranscriptTurn) rather than only at final scoring.
+    conversation_id: str
 
 
 class SpeakingTurnResponse(BaseModel):
@@ -42,6 +46,11 @@ class ListeningPassage(BaseModel):
 class SpeakingPart(BaseModel):
     task_name: PartName
     transcript: list[ConversationTurn]
+    # Matches the conversation_id used during the live turns for this
+    # part, if any (listening has no /turn calls, so it stays None) — lets
+    # correct_session() link the already-persisted transcript to the
+    # final PracticeSession.
+    conversation_id: str | None = None
 
 
 class SpeakingCorrectionRequest(BaseModel):

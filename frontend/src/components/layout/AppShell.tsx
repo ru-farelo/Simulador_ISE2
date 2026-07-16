@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/reading', label: 'Reading', end: false, comingSoon: false },
   { to: '/writing', label: 'Writing', end: false, comingSoon: false },
   { to: '/speaking', label: 'Speaking & Listening', end: false, comingSoon: false },
+  { to: '/practice', label: 'Práctica diaria', end: false, comingSoon: false },
 ]
 
 export function AppShell() {
@@ -59,7 +60,19 @@ export function AppShell() {
       </main>
 
       <footer className="mt-12 border-t border-line pt-4 font-mono text-xs text-ink-faint">
-        Simulador Trinity ISE II — práctica personal
+        <p>Simulador Trinity ISE II — práctica personal</p>
+        <p className="mt-1">
+          Vocabulario general basado en la{' '}
+          <a
+            href="https://www.newgeneralservicelist.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-ink-soft"
+          >
+            New General Service List
+          </a>{' '}
+          (Browne, Culligan &amp; Phillips) — CC BY-SA 4.0.
+        </p>
       </footer>
     </div>
   )

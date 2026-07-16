@@ -15,6 +15,12 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str
     anthropic_model: str = "claude-sonnet-4-6"
+    # Local model (Ollama) for high-volume, low-risk generation — vocab
+    # translations/examples, generic grammar/filler practice prompts.
+    # Never used for Reading/Writing/Speaking correction, where quality
+    # matters most.
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "qwen3:8b"
     cors_origins: str = "http://localhost:5173"
     database_path: str = "./app/data/app.db"
     vector_db_url: str = "postgresql://ise2:ise2@localhost:5432/ise2_vectors"

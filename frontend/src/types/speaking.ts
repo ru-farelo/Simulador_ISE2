@@ -10,6 +10,7 @@ export interface ConversationTurn {
 export interface SpeakingTurnRequest {
   history: ConversationTurn[]
   context: Record<string, string>
+  conversation_id: string
 }
 
 export interface SpeakingTurnResponse {
@@ -31,6 +32,7 @@ export interface ListeningPassage {
 export interface SpeakingPart {
   task_name: PartName
   transcript: ConversationTurn[]
+  conversation_id?: string
 }
 
 export interface SpeakingCorrectionRequest {

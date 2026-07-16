@@ -69,6 +69,17 @@ def structured_completion(
     except anthropic.APIError as exc:
         raise AIServiceError(f"Anthropic API call failed: {exc}") from exc
 
+    # A response cut off by the token limit still contains a tool_use
+    # block, but block.input is a partial (sometimes empty {}) JSON
+    # object that the SDK best-effort-parsed — silently returning it
+    # produces a confusing KeyError several calls downstream instead of a
+    # clear error here, where we actually know what went wrong.
+    if response.stop_reason == "max_tokens":
+        raise AIServiceError(
+            f"La respuesta de Claude se cortó por max_tokens ({max_tokens}) antes de "
+            f"completar la llamada a '{tool_name}' — sube max_tokens o reduce el tamaño del lote."
+        )
+
     for block in response.content:
         if block.type == "tool_use" and block.name == tool_name:
             return block.input

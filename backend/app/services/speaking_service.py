@@ -1,14 +1,16 @@
 import random
 
+from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
-from app.models.db_models import PracticeSession
+from app.models.db_models import PracticeSession, SpeakingTranscriptTurn
 from app.models.schemas import ErrorItem
 from app.models.speaking import (
     ConversationTurn,
     SpeakingCorrectionRequest,
     SpeakingCorrectionResult,
     SpeakingTaskName,
+    SpeakingTurnRequest,
     SpeakingTurnResponse,
 )
 from app.services.anthropic_client import structured_completion
@@ -90,9 +92,28 @@ def _format_history(history: list[ConversationTurn]) -> str:
 FOLLOWUP_LIMITS: dict[SpeakingTaskName, int] = {"topic": 3, "collaborative": 4, "conversation": 4}
 
 
-def get_examiner_turn(
-    task_name: SpeakingTaskName, history: list[ConversationTurn], context: dict
-) -> SpeakingTurnResponse:
+def _persist_transcript(db: Session, conversation_id: str, task_name: str, turns: list[ConversationTurn]) -> None:
+    """Idempotent: replaces whatever was stored for this conversation_id
+    with the given turns, keyed by position. Called after every turn with
+    the full history-so-far, so a partial conversation is never lost even
+    if the candidate abandons it before requesting a correction.
+    """
+    db.execute(delete(SpeakingTranscriptTurn).where(SpeakingTranscriptTurn.conversation_id == conversation_id))
+    for index, turn in enumerate(turns):
+        db.add(
+            SpeakingTranscriptTurn(
+                conversation_id=conversation_id,
+                task_name=task_name,
+                turn_index=index,
+                speaker=turn.role,
+                text=turn.text,
+            )
+        )
+    db.commit()
+
+
+def get_examiner_turn(db: Session, task_name: SpeakingTaskName, request: SpeakingTurnRequest) -> SpeakingTurnResponse:
+    history, context = request.history, request.context
     system_prompt = TASK_INSTRUCTIONS[task_name].format(**context) if task_name == "conversation" else TASK_INSTRUCTIONS[task_name]
 
     candidate_turns = sum(1 for t in history if t.role == "candidate")
@@ -129,7 +150,12 @@ def get_examiner_turn(
         input_schema=TURN_TOOL_SCHEMA,
         max_tokens=400,
     )
-    return SpeakingTurnResponse(**result)
+    response = SpeakingTurnResponse(**result)
+
+    full_history = [*history, ConversationTurn(role="examiner", text=response.examiner_text)]
+    _persist_transcript(db, request.conversation_id, task_name, full_history)
+
+    return response
 
 
 PART_LABELS = {
@@ -246,6 +272,15 @@ def correct_session(db: Session, request: SpeakingCorrectionRequest) -> Speaking
     db.add(session_row)
     db.commit()
     db.refresh(session_row)
+
+    conversation_ids = [p.conversation_id for p in request.parts if p.conversation_id]
+    if conversation_ids:
+        db.execute(
+            update(SpeakingTranscriptTurn)
+            .where(SpeakingTranscriptTurn.conversation_id.in_(conversation_ids))
+            .values(session_id=session_row.id)
+        )
+        db.commit()
 
     return SpeakingCorrectionResult(
         session_id=session_row.id,

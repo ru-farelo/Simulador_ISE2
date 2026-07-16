@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import get_settings
 from app.core.db import init_db
 from app.core.vector_db import init_vector_db
-from app.routers import dashboard, listening, rag, reading, speaking, writing
+from app.routers import dashboard, learning, listening, planner, rag, reading, reinforcement, speaking, writing
 
 settings = get_settings()
 
@@ -34,6 +34,9 @@ app.include_router(writing.router)
 app.include_router(speaking.router)
 app.include_router(listening.router)
 app.include_router(rag.router)
+app.include_router(learning.router)
+app.include_router(reinforcement.router)
+app.include_router(planner.router)
 
 
 @app.get("/api/health")

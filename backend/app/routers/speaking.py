@@ -24,9 +24,10 @@ def get_conversation_topic() -> dict[str, str]:
 def post_turn(
     request: SpeakingTurnRequest,
     task_name: SpeakingTaskName = Path(...),
+    db: Session = Depends(get_db),
 ) -> SpeakingTurnResponse:
     try:
-        return speaking_service.get_examiner_turn(task_name, request.history, request.context)
+        return speaking_service.get_examiner_turn(db, task_name, request)
     except AIServiceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

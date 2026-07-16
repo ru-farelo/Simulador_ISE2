@@ -137,7 +137,52 @@ por similitud de embeddings y los añade como contexto al prompt. Cada
 recuperación queda registrada — puedes auditar la calidad vía
 `GET /api/rag/logs`.
 
+## Práctica diaria — Aprendizaje y Refuerzo
+
+Dos bloques de repetición espaciada (SM-2) sobre vocabulario, gramática,
+fillers/conectores y pronunciación, con ejercicios de producción activa
+(nunca de reconocimiento pasivo tipo multiple choice):
+
+- **Bloque 1 (Aprendizaje):** ítems extraídos de tus propios PDFs vía
+  `scripts/extract_learning_items.py`, más una categoría "general" de
+  vocabulario de alta frecuencia (ver cita más abajo). Las tarjetas
+  nuevas se presentan primero como flashcard clásica (término +
+  definición + ejemplo, "la sabía" / "no la sabía"); a partir del segundo
+  repaso pasan a producción activa (hueco para escribir, transformación
+  de frases, etc.).
+- **Bloque 2 (Refuerzo):** se puebla solo, a partir de los errores reales
+  que Claude detecta en tus sesiones de Reading/Writing/Speaking
+  (`practice_sessions.errors`) — frases con el error para detectar y
+  corregir tú mismo, sin pista.
+
+### Cita — New General Service List (NGSL)
+
+El vocabulario general de alta frecuencia (categoría `general`) usa las
+500 palabras más frecuentes de la **New General Service List (NGSL)**:
+
+> Browne, C., Culligan, B., & Phillips, J. *The New General Service
+> List*. https://www.newgeneralservicelist.com/
+> Licencia: [Creative Commons Attribution-ShareAlike 4.0 International
+> (CC BY-SA 4.0)](https://creativecommons.org/licenses/by-sa/4.0/)
+
+La lista de palabras (solo los headwords, sin definiciones de terceros)
+vive en `backend/app/data/ngsl_words.py`; las definiciones y frases de
+ejemplo que se guardan en `learning_items` las genera Claude
+específicamente para este proyecto, no proceden de la NGSL.
+
 ## Variables de entorno (`backend/.env`)
 
 Ver `backend/.env.example` para la lista completa y su descripción. Nunca
 subas `backend/.env` a git — ya está en `.gitignore`.
+
+# 1. Vector DB (Postgres/pgvector vía Docker)
+docker compose up -d vector_db
+
+# 2. Backend
+cd backend
+venv\Scripts\activate
+uvicorn app.main:app --reload --port 8000
+
+# 3. Frontend
+cd frontend
+npm run dev

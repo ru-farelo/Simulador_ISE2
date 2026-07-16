@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
 import { DashboardPage } from './pages/DashboardPage'
+import { PracticePage } from './pages/PracticePage'
 import { ReadingPage } from './pages/ReadingPage'
 import { SpeakingPage } from './pages/SpeakingPage'
 import { WritingPage } from './pages/WritingPage'
@@ -14,6 +15,7 @@ function App() {
           <Route path="reading" element={<ReadingPage />} />
           <Route path="writing" element={<WritingPage />} />
           <Route path="speaking" element={<SpeakingPage />} />
+          <Route path="practice" element={<PracticePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

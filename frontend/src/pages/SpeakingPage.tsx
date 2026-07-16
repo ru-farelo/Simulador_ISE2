@@ -30,6 +30,16 @@ export function SpeakingPage() {
     conversation: [],
     listening: [],
   })
+  // One id per task attempt, generated once per page load — sent with
+  // every /turn call so the backend can persist the transcript turn by
+  // turn, then linked to the final PracticeSession on correction. Listening
+  // has no /turn calls (its Q&A is built locally), so its id is unused.
+  const [conversationIds] = useState<Record<TaskKey, string>>({
+    topic: crypto.randomUUID(),
+    collaborative: crypto.randomUUID(),
+    conversation: crypto.randomUUID(),
+    listening: crypto.randomUUID(),
+  })
   const [correcting, setCorrecting] = useState(false)
   const [correctError, setCorrectError] = useState<string | null>(null)
   const [result, setResult] = useState<SpeakingCorrectionResult | null>(null)
@@ -39,7 +49,11 @@ export function SpeakingPage() {
 
   const runCorrection = (scope: TaskKey | 'all') => {
     const parts = (scope === 'all' ? (Object.keys(transcripts) as TaskKey[]) : [scope])
-      .map((task) => ({ task_name: task as PartName, transcript: transcripts[task] }))
+      .map((task) => ({
+        task_name: task as PartName,
+        transcript: transcripts[task],
+        conversation_id: task === 'listening' ? undefined : conversationIds[task],
+      }))
       .filter((p) => p.transcript.length > 0)
 
     if (parts.length === 0) return
@@ -80,18 +94,24 @@ export function SpeakingPage() {
       </nav>
 
       <div className={activeTask === 'topic' ? '' : 'hidden'}>
-        <TopicTaskView transcript={transcripts.topic} setTranscript={(t) => setTranscript('topic', t)} />
+        <TopicTaskView
+          transcript={transcripts.topic}
+          setTranscript={(t) => setTranscript('topic', t)}
+          conversationId={conversationIds.topic}
+        />
       </div>
       <div className={activeTask === 'collaborative' ? '' : 'hidden'}>
         <CollaborativeTaskView
           transcript={transcripts.collaborative}
           setTranscript={(t) => setTranscript('collaborative', t)}
+          conversationId={conversationIds.collaborative}
         />
       </div>
       <div className={activeTask === 'conversation' ? '' : 'hidden'}>
         <ConversationTaskView
           transcript={transcripts.conversation}
           setTranscript={(t) => setTranscript('conversation', t)}
+          conversationId={conversationIds.conversation}
         />
       </div>
       <div className={activeTask === 'listening' ? '' : 'hidden'}>
@@ -173,9 +193,11 @@ function SpeakingResultView({ result }: { result: SpeakingCorrectionResult }) {
 function TopicTaskView({
   transcript,
   setTranscript,
+  conversationId,
 }: {
   transcript: ConversationTurn[]
   setTranscript: (t: ConversationTurn[]) => void
+  conversationId: string
 }) {
   const [phase, setPhase] = useState<'prep' | 'chatting' | 'done'>(transcript.length > 0 ? 'chatting' : 'prep')
   const [topic, setTopic] = useState('AI in Language Learning')
@@ -191,7 +213,7 @@ function TopicTaskView({
     setLoading(true)
     setError(null)
     speakingApi
-      .postTurn('topic', { history: newHistory, context: { topic, notes } })
+      .postTurn('topic', { history: newHistory, context: { topic, notes }, conversation_id: conversationId })
       .then((res) => {
         setTranscript([...newHistory, { role: 'examiner', text: res.examiner_text }])
         setPhase(res.task_complete ? 'done' : 'chatting')
@@ -266,9 +288,11 @@ function TopicTaskView({
 function CollaborativeTaskView({
   transcript,
   setTranscript,
+  conversationId,
 }: {
   transcript: ConversationTurn[]
   setTranscript: (t: ConversationTurn[]) => void
+  conversationId: string
 }) {
   const [phase, setPhase] = useState<'idle' | 'chatting' | 'done'>(transcript.length > 0 ? 'chatting' : 'idle')
   const [draft, setDraft] = useState('')
@@ -279,7 +303,7 @@ function CollaborativeTaskView({
     setLoading(true)
     setError(null)
     speakingApi
-      .postTurn('collaborative', { history: [], context: {} })
+      .postTurn('collaborative', { history: [], context: {}, conversation_id: conversationId })
       .then((res) => {
         setTranscript([{ role: 'examiner', text: res.examiner_text }])
         setPhase('chatting')
@@ -295,7 +319,7 @@ function CollaborativeTaskView({
     setLoading(true)
     setError(null)
     speakingApi
-      .postTurn('collaborative', { history: newHistory, context: {} })
+      .postTurn('collaborative', { history: newHistory, context: {}, conversation_id: conversationId })
       .then((res) => {
         setTranscript([...newHistory, { role: 'examiner', text: res.examiner_text }])
         setPhase(res.task_complete ? 'done' : 'chatting')
@@ -352,9 +376,11 @@ function CollaborativeTaskView({
 function ConversationTaskView({
   transcript,
   setTranscript,
+  conversationId,
 }: {
   transcript: ConversationTurn[]
   setTranscript: (t: ConversationTurn[]) => void
+  conversationId: string
 }) {
   const [phase, setPhase] = useState<'idle' | 'chatting' | 'done'>(transcript.length > 0 ? 'chatting' : 'idle')
   const [topic, setTopic] = useState<string | null>(null)
@@ -369,7 +395,11 @@ function ConversationTaskView({
       .getConversationTopic()
       .then(({ topic: chosen }) => {
         setTopic(chosen)
-        return speakingApi.postTurn('conversation', { history: [], context: { topic: chosen } })
+        return speakingApi.postTurn('conversation', {
+          history: [],
+          context: { topic: chosen },
+          conversation_id: conversationId,
+        })
       })
       .then((res) => {
         setTranscript([{ role: 'examiner', text: res.examiner_text }])
@@ -387,7 +417,7 @@ function ConversationTaskView({
     setLoading(true)
     setError(null)
     speakingApi
-      .postTurn('conversation', { history: newHistory, context: { topic } })
+      .postTurn('conversation', { history: newHistory, context: { topic }, conversation_id: conversationId })
       .then((res) => {
         setTranscript([...newHistory, { role: 'examiner', text: res.examiner_text }])
         setPhase(res.task_complete ? 'done' : 'chatting')
