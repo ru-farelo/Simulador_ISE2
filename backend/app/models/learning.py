@@ -72,6 +72,21 @@ class LearningReviewRequest(BaseModel):
     # the candidate just self-rates rather than writing anything, so
     # there's nothing for the AI to grade.
     self_rating: Literal["known", "unknown"] | None = None
+    # Which phase of a two-phase grammar drill this review is for — "1" is
+    # the controlled transformation (the only phase for every other item
+    # type, and the default). "2" is the free-production follow-up offered
+    # only after a correct Phase 1 answer on a grammar item the candidate
+    # has already gotten right at least twice (repetitions >= 2).
+    phase: Literal["1", "2"] = "1"
+    # Echoed back by the frontend when submitting Phase 2 — the topic from
+    # the Phase2Prompt returned in the Phase 1 LearningReviewResult, since
+    # (unlike prompt_sentence) Phase 2 content isn't cached on the item.
+    phase2_topic: str | None = None
+
+
+class Phase2Prompt(BaseModel):
+    topic: str
+    instructions: str
 
 
 class LearningReviewResult(BaseModel):
@@ -81,3 +96,7 @@ class LearningReviewResult(BaseModel):
     interval_days: int
     repetitions: int
     next_due_date: dt.date
+    # Present only after a correct grammar Phase 1 answer that brought the
+    # item's repetitions to >= 2 — the frontend should then show a Phase 2
+    # free-production card using this prompt, before moving on.
+    phase2: Phase2Prompt | None = None

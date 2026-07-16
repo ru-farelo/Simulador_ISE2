@@ -48,6 +48,13 @@ export interface LearningReviewRequest {
   answer?: string
   prompt?: string
   self_rating?: 'known' | 'unknown'
+  phase?: '1' | '2'
+  phase2_topic?: string
+}
+
+export interface Phase2Prompt {
+  topic: string
+  instructions: string
 }
 
 export interface LearningReviewResult {
@@ -57,4 +64,5 @@ export interface LearningReviewResult {
   interval_days: number
   repetitions: number
   next_due_date: string
+  phase2?: Phase2Prompt | null
 }

@@ -20,6 +20,7 @@ low-stakes drill content.
 
 import datetime as dt
 import difflib
+import random
 import re
 from collections.abc import Callable
 
@@ -35,11 +36,12 @@ from app.models.learning import (
     DueVocabItem,
     LearningReviewRequest,
     LearningReviewResult,
+    Phase2Prompt,
 )
 from app.services.anthropic_client import structured_completion
 from app.services.batch_generation import generate_with_retry, tokens_for_batch
 from app.services.local_client import structured_completion as local_structured_completion
-from app.services.spaced_repetition import next_due_date, quality_from_correct, sm2_update
+from app.services.spaced_repetition import next_due_date, quality_from_correct, sm2_soft_fail, sm2_update
 
 # --------------------------------------------------------------- helpers
 
@@ -390,6 +392,30 @@ FILLER_GRADE_SYSTEM = (
     "correctness of the content/opinion itself. Give brief feedback in one sentence."
 )
 
+# Grammar Phase 2 — offered after a correct Phase 1 (controlled
+# transformation) answer once the item has repetitions >= 2, i.e. the
+# candidate has already shown control of this structure at least twice.
+# Free production from scratch on one of these short, generic topics —
+# no source sentence to transform this time.
+GRAMMAR_PHASE2_TOPICS = [
+    "your daily study routine",
+    "technology in your everyday life",
+    "a recent change in your life",
+    "your opinion on teamwork",
+]
+
+GRAMMAR_PHASE2_GRADE_SYSTEM = (
+    "You are marking a free-production grammar exercise for a B2 English learner. "
+    "Unlike a transformation exercise, they were given only a topic and a target "
+    "grammar structure, with no source sentence — any topic-appropriate content is "
+    "acceptable. Judge STRICTLY whether the target structure is genuinely present and "
+    "correctly formed somewhere in their writing — merely addressing the topic is not "
+    "enough; the structure itself must actually appear, well-formed. Minor unrelated "
+    "grammar slips elsewhere don't matter for this check. Always also provide one "
+    "example of how the structure could be used for this topic, even if the "
+    "candidate's answer was already correct."
+)
+
 
 def _grade_vocab(item: LearningItem, answer: str) -> tuple[bool, str, None]:
     result = structured_completion(
@@ -410,6 +436,22 @@ def _grade_grammar(item: LearningItem, prompt_sentence: str, answer: str) -> tup
             f"Target structure: {item.term} ({item.definition})\n"
             f"Original simple sentence: {prompt_sentence or '(not provided)'}\n"
             f"Candidate's rewrite: {answer or '(left blank)'}"
+        ),
+        tool_name="submit_grade",
+        tool_description="Submit the grading result.",
+        input_schema=GRAMMAR_GRADE_SCHEMA,
+        max_tokens=400,
+    )
+    return result["correct"], result["feedback"], result["model_rewrite"]
+
+
+def _grade_grammar_phase2(item: LearningItem, topic: str, answer: str) -> tuple[bool, str, str]:
+    result = structured_completion(
+        system=GRAMMAR_PHASE2_GRADE_SYSTEM,
+        user_content=(
+            f"Target structure: {item.term} ({item.definition})\n"
+            f"Topic to write about: {topic or '(not provided)'}\n"
+            f"Candidate's writing: {answer or '(left blank)'}"
         ),
         tool_name="submit_grade",
         tool_description="Submit the grading result.",
@@ -455,6 +497,9 @@ def review_item(db: Session, item_id: int, request: LearningReviewRequest) -> Le
     item = db.get(LearningItem, item_id)
     if item is None:
         raise ValueError(f"Unknown learning item id: {item_id}")
+
+    if item.type == "grammar" and request.phase == "2":
+        return _review_grammar_phase2(db, item, request)
 
     # The prompt_sentence/opener shown to the candidate lives in
     # item.cached_prompt (see _fill_prompt_cache) — that's the source of
@@ -502,6 +547,67 @@ def review_item(db: Session, item_id: int, request: LearningReviewRequest) -> Le
         item.cached_prompt = None
         item.cached_prompt_generated_at = None
 
+    # Offer Phase 2 (free production, no source sentence) only right after
+    # a correct Phase 1 answer that brought repetitions to >= 2 — i.e. the
+    # candidate has now gotten this structure right at least twice in the
+    # controlled transformation before being asked to produce it from
+    # scratch. Deterministic (no AI call): the topic is just picked from a
+    # short fixed list, not generated.
+    phase2 = None
+    if item.type == "grammar" and correct and progress.repetitions >= 2:
+        topic = random.choice(GRAMMAR_PHASE2_TOPICS)
+        phase2 = Phase2Prompt(
+            topic=topic,
+            instructions=(
+                f"Now use {_primary_term(item.term)} to talk about {topic} — "
+                "write from scratch, no starting sentence this time."
+            ),
+        )
+
+    db.commit()
+
+    return LearningReviewResult(
+        correct=correct,
+        feedback=feedback,
+        corrected_answer=corrected,
+        interval_days=progress.interval_days,
+        repetitions=progress.repetitions,
+        next_due_date=progress.due_date,
+        phase2=phase2,
+    )
+
+
+def _review_grammar_phase2(db: Session, item: LearningItem, request: LearningReviewRequest) -> LearningReviewResult:
+    """Grades the Phase 2 free-production follow-up. Uses a softer SM-2
+    penalty on failure than the standard path (see sm2_soft_fail) — this
+    is an extra, harder check on a structure the candidate has already
+    shown controlled mastery of, so failing it shouldn't reset that
+    progress the way failing the controlled transformation would.
+    """
+    correct, feedback, corrected = _grade_grammar_phase2(item, request.phase2_topic or "", request.answer)
+
+    progress = db.execute(select(ItemProgress).where(ItemProgress.item_id == item.id)).scalar_one_or_none()
+    if progress is None:
+        progress = ItemProgress(
+            item_id=item.id, ease_factor=2.5, interval_days=0, repetitions=0, due_date=_today()
+        )
+        db.add(progress)
+
+    if correct:
+        quality = quality_from_correct(True)
+        progress.ease_factor, progress.interval_days, progress.repetitions = sm2_update(
+            progress.ease_factor, progress.interval_days, progress.repetitions, quality
+        )
+    else:
+        progress.ease_factor, progress.interval_days, progress.repetitions = sm2_soft_fail(
+            progress.ease_factor, progress.interval_days, progress.repetitions
+        )
+
+    progress.due_date = next_due_date(progress.interval_days, today=_today())
+    progress.last_reviewed_at = dt.datetime.now(dt.timezone.utc)
+    progress.last_result = "correct" if correct else "incorrect"
+    progress.last_feedback = feedback
+    progress.last_corrected_answer = corrected
     db.commit()
 
     return LearningReviewResult(

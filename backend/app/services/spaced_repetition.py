@@ -39,3 +39,16 @@ def sm2_update(
 def next_due_date(interval_days: int, today: dt.date | None = None) -> dt.date:
     today = today or dt.datetime.now(dt.timezone.utc).date()
     return today + dt.timedelta(days=interval_days)
+
+
+def sm2_soft_fail(ease_factor: float, interval_days: int, repetitions: int) -> tuple[float, int, int]:
+    """A gentler penalty than the standard SM-2 quality<3 path (which
+    resets repetitions to 0 and interval to 1 day). Used for grammar
+    Phase 2 (free production of a structure the candidate has already
+    demonstrated controlled mastery of at least twice in Phase 1) —
+    failing free production shouldn't wipe out that Phase 1 progress,
+    just pull the item back sooner and dent the ease factor a bit.
+    """
+    new_interval = max(1, interval_days // 2)
+    new_ease = max(MIN_EASE_FACTOR, ease_factor - 0.15)
+    return new_ease, new_interval, repetitions
